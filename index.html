@@ -45,6 +45,237 @@
 </div>
 
 <script>
+// ==========================================
+// 🔊 音效引擎：利用 Web Audio API 生成 8-bit 復古音效
+// ==========================================
+const AudioCtx = window.AudioContext || window.webkitAudioContext;
+const audioCtx = new AudioCtx();
+
+/**
+ * 播放指定類型的合成音效
+ * @param {string} type - 音效類型
+ */
+function playSound(type) {
+    // 瀏覽器安全策略：若沒有使用者互動 (點擊等)，AudioContext 會處於 suspended 狀態。這裡做一層防護。
+    if (audioCtx.state === 'suspended') return;
+
+    // 創建振盪器 (產生波形聲音) 與音量控制器 (Gain)
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    // 將振盪器連接至音量控制器，再連接至系統音響輸出
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    const now = audioCtx.currentTime;
+
+    switch(type) {
+        case 'jump':
+            // 跳躍音效：使用方波 (Square wave)，頻率快速上升製造「咻」的感覺
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(150, now); // 起始低頻 150Hz
+            osc.frequency.exponentialRampToValueAtTime(400, now + 0.1); // 0.1秒內指數上升至 400Hz
+            gain.gain.setValueAtTime(0.1, now); // 初始音量 0.1
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1); // 音量平滑衰減，避免破音
+            osc.start(now);
+            osc.stop(now + 0.1); // 0.1秒後停止
+            break;
+
+        case 'pickup':
+            // 獲得道具：使用正弦波 (Sine wave)，發出兩個清脆的「叮咚」高音
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(600, now); // 第一個音 600Hz
+            osc.frequency.setValueAtTime(800, now + 0.1); // 0.1秒時瞬間切換為 800Hz
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3); // 聲音持續 0.3 秒緩慢衰減
+            osc.start(now);
+            osc.stop(now + 0.3);
+            break;
+
+        case 'hit':
+            // 受傷音效：使用鋸齒波 (Sawtooth wave)，帶有粗糙、電擊感的雜訊音
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(150, now); 
+            osc.frequency.linearRampToValueAtTime(50, now + 0.2); // 頻率線性下降製造「掉落感」
+            gain.gain.setValueAtTime(0.2, now); // 音量稍微大一點
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.2);
+            break;
+
+        case 'door':
+            // 🔊 傳送門音效更新：頻率快速上升的魔法 Warp 聲音 (Sine Wave)
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(200, now);
+            osc.frequency.exponentialRampToValueAtTime(800, now + 0.5); // 頻率從 200 飆升到 800
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.linearRampToValueAtTime(0, now + 0.5);
+            osc.start(now);
+            osc.stop(now + 0.5);
+            break;
+
+        case 'gameover':
+            // 遊戲結束音效：沉重且緩慢降低的鋸齒波，營造失敗感
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(200, now);
+            osc.frequency.exponentialRampToValueAtTime(40, now + 0.8);
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.8);
+            osc.start(now);
+            osc.stop(now + 0.8);
+            break;
+
+        case 'win':
+            // 勝利音效：模擬經典 8-bit 的琶音 (Arpeggio) 升階和弦
+            const freqs = [440, 554, 659, 880]; // A4, C#5, E5, A5
+            freqs.forEach((freq, index) => {
+                const o = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                o.type = 'square';
+                o.connect(g);
+                g.connect(audioCtx.destination);
+                o.frequency.setValueAtTime(freq, now + index * 0.1); // 每個音符延遲 0.1 秒依次播放
+                g.gain.setValueAtTime(0.1, now + index * 0.1);
+                g.gain.exponentialRampToValueAtTime(0.01, now + index * 0.1 + 0.2); // 每個音符持續 0.2 秒
+                o.start(now + index * 0.1);
+                o.stop(now + index * 0.1 + 0.2);
+            });
+            break;
+
+        case 'select':
+            // 介面選擇音效：極短促的「嗶」聲
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(800, now);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+            osc.start(now);
+            osc.stop(now + 0.1);
+            break;
+
+        case 'chestOpen':
+            // 🔊 寶箱開啟音效：魔法閃爍般的上升琶音
+            [440, 554, 659, 880, 1108].forEach((f, i) => {
+                const o = audioCtx.createOscillator();
+                const g = audioCtx.createGain();
+                o.type = 'sine'; o.connect(g); g.connect(audioCtx.destination);
+                o.frequency.setValueAtTime(f, now + i * 0.05);
+                g.gain.setValueAtTime(0.1, now + i * 0.05);
+                g.gain.exponentialRampToValueAtTime(0.01, now + i * 0.05 + 0.3);
+                o.start(now + i * 0.05); o.stop(now + i * 0.05 + 0.3);
+            });
+            break;
+
+        case 'mushroomBounce':
+            // 🔊 蘑菇彈跳音效：Q彈的滑音
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.exponentialRampToValueAtTime(900, now + 0.2); // 頻率迅速拔高
+            gain.gain.setValueAtTime(0.2, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now);
+            osc.stop(now + 0.2);
+            break;
+
+        case 'meow_white':
+            // 🔊 白貓叫聲：輕柔高音
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.exponentialRampToValueAtTime(600, now + 0.3);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.3);
+            osc.start(now); osc.stop(now + 0.3);
+            break;
+
+        case 'meow_black':
+            // 🔊 黑貓叫聲：低沉帶點沙啞（方波）
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(300, now);
+            osc.frequency.linearRampToValueAtTime(150, now + 0.4);
+            gain.gain.setValueAtTime(0.05, now);
+            gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+            osc.start(now); osc.stop(now + 0.4);
+            break;
+
+        case 'meow_orange':
+            // 🔊 橘貓叫聲：驚嚇短促
+            osc.type = 'sawtooth';
+            osc.frequency.setValueAtTime(500, now);
+            osc.frequency.exponentialRampToValueAtTime(900, now + 0.2);
+            gain.gain.setValueAtTime(0.1, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+            osc.start(now); osc.stop(now + 0.2);
+            break;
+    }
+}
+
+// 🔊 BGM 引擎：多場景獨立音樂系統
+let bgmPlaying = false;
+let nextNoteTime = 0;
+let currentNote = 0;
+let bgmTimerID;
+
+// 🔊 為 5 個不同場景設定不同的音樂軌道 (避免單調)
+const bgmTracks = {
+    1: { notes: [329.63, 392.00, 440.00, 493.88, 392.00, 440.00], tempo: 140, type: 'sine' },      // 森林：空靈孤獨的雨滴感
+    2: { notes: [261.63, 311.13, 392.00, 311.13, 261.63, 196.00], tempo: 120, type: 'triangle' },  // 木屋前：微弱神秘的感覺
+    3: { notes: [146.83, 164.81, 174.61, 164.81], tempo: 220, type: 'square' },                    // 黑貓走廊：緊張、低沉急促
+    4: { notes: [392.00, 329.63, 261.63, 329.63], tempo: 160, type: 'sine' },                      // 橘貓臥室：稍微活潑、跳躍
+    5: { notes: [440.00, 349.23, 329.63, 293.66, 329.63, 440.00], tempo: 90, type: 'triangle' }    // 女巫房間：悲傷、緩慢下行
+};
+
+function scheduleNote(beatNumber, time) {
+    const track = bgmTracks[currentLevel] || bgmTracks[1]; // 根據當前關卡獲取對應音樂
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = track.type; // 🔊 根據關卡更換樂器音色
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.frequency.value = track.notes[beatNumber];
+    
+    // 音量控制
+    gain.gain.setValueAtTime(0, time);
+    gain.gain.linearRampToValueAtTime(0.03, time + 0.05); 
+    gain.gain.linearRampToValueAtTime(0, time + 0.25);
+    
+    osc.start(time);
+    osc.stop(time + 0.3);
+}
+
+function scheduler() {
+    const track = bgmTracks[currentLevel] || bgmTracks[1];
+    // 提前排程以確保音樂無縫循環
+    while (nextNoteTime < audioCtx.currentTime + 0.1) {
+        scheduleNote(currentNote, nextNoteTime);
+        nextNoteTime += 60.0 / track.tempo; // 🔊 根據關卡更換速度
+        currentNote = (currentNote + 1) % track.notes.length;
+    }
+    bgmTimerID = setTimeout(scheduler, 25);
+}
+
+function startBGM() {
+    if (bgmPlaying) return;
+    bgmPlaying = true;
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    nextNoteTime = audioCtx.currentTime + 0.1;
+    scheduler();
+}
+
+function stopBGM() {
+    bgmPlaying = false;
+    clearTimeout(bgmTimerID);
+}
+
+// 🔊 換場景時更新 BGM
+function updateBGMForLevel() {
+    if(bgmPlaying) {
+        stopBGM();
+        currentNote = 0; // 重置音符到第一拍
+        startBGM();
+    }
+}
+// ==========================================
+
+
 const canvas = document.getElementById('gameCanvas');
 const ctx = canvas.getContext('2d');
 const narratorEl = document.getElementById('narrator-text');
@@ -66,7 +297,7 @@ let dialogueHistory = [];
 
 const camera = { x: 0 };
 
-// 资源对象
+// 資源對象
 const charImgs = {
     player: new Image(), 
     player_idle1: new Image(), player_idle2: new Image(),
@@ -94,20 +325,21 @@ const iconImgs = { key: new Image(), fish: new Image(), swatter: new Image(), fr
 const platformImgs = { grass: new Image(), wood: new Image() };
 const bgImgs = { forest: new Image(), cabin: new Image(), porch: new Image(), bedroom: new Image(), witch_room: new Image(), ending: new Image(), title: new Image() };
 
-// 开启跨域
+// 🔊 結局音樂設定 (全局變數)
+// 這裡填入你上傳的音樂連結
+const endingMusic = new Audio('https://files.catbox.moe/xgwcj0.mp3'); 
+endingMusic.volume = 0.6; // 音量調整
+
+// 啟動跨域
 const allImgs = [...Object.values(charImgs), ...Object.values(itemImgs), ...Object.values(bgImgs), ...Object.values(iconImgs), ...Object.values(platformImgs)];
 allImgs.forEach(img => img.crossOrigin = "Anonymous");
 
 function loadAssets() {
-    // ----------------------------------------------------
-    // 👇 請確保這裡填入了正確的動畫 Sheet 鏈接
-    // ----------------------------------------------------
-    
-    // NPC 動畫 Sheet (必須是橫向排列的動作圖)
-    charImgs.white_cat_sheet.src  = 'https://i.imgur.com/mSGIEOI.png'; // 6幀
-    charImgs.black_cat_sheet.src  = 'https://i.imgur.com/3XlImxi.png'; // 6幀
-    charImgs.orange_cat_sheet.src = 'https://i.imgur.com/VMwStDW.png'; // 8幀
-    charImgs.witch_sheet.src      = 'https://i.imgur.com/ekI1vIy.png'; // 默認 4幀
+    // NPC 動畫 Sheet
+    charImgs.white_cat_sheet.src  = 'https://i.imgur.com/mSGIEOI.png'; 
+    charImgs.black_cat_sheet.src  = 'https://i.imgur.com/3XlImxi.png'; 
+    charImgs.orange_cat_sheet.src = 'https://i.imgur.com/VMwStDW.png'; 
+    charImgs.witch_sheet.src      = 'https://i.imgur.com/ekI1vIy.png'; 
 
     // 門的動畫
     itemImgs.door_sheet.src   = 'https://i.imgur.com/YB6Wczb.png'; 
@@ -191,6 +423,11 @@ function init() {
     });
     
     startBtn.addEventListener('click', () => {
+        // 🔊 喚醒音效引擎：解決現代瀏覽器預設禁止自動播放的問題
+        if (audioCtx.state === 'suspended') audioCtx.resume();
+        playSound('select'); // 🔊 點擊開始按鈕音效
+        startBGM(); // 🔊 遊戲開始，開始播放背景音樂
+
         startScreen.style.display = 'none'; 
         menuBtn.style.display = 'block'; 
         logBtn.style.display = 'block'; 
@@ -202,12 +439,21 @@ function init() {
     });
     
     restartBtn.addEventListener('click', () => {
+        playSound('select'); // 🔊 點擊音效
+        startBGM(); // 🔊 重新開始，恢復背景音樂
+        endingMusic.pause(); // 🔊 如果正在播結局音樂，將其暫停
+        endingMusic.currentTime = 0; // 重置音樂進度
         gameOverScreen.style.display = 'none'; player.hp = 3; player.iframes = 0; currentState = GAME_STATE.PLAYING; resetLevel();
     });
     menuBtn.addEventListener('click', () => {
+        playSound('select'); // 🔊 點擊音效
+        stopBGM(); // 🔊 回到主選單，停止背景音樂
+        endingMusic.pause(); // 🔊 如果正在播結局音樂，將其暫停
+        endingMusic.currentTime = 0; // 重置音樂進度
         currentState = GAME_STATE.MENU; startScreen.style.display = 'flex'; gameOverScreen.style.display = 'none'; menuBtn.style.display = 'none'; logBtn.style.display = 'none';
     });
     logBtn.addEventListener('click', () => {
+        playSound('select'); // 🔊 點擊音效
         if (currentState === GAME_STATE.PLAYING || currentState === GAME_STATE.INVENTORY) currentState = GAME_STATE.HISTORY;
         else if (currentState === GAME_STATE.HISTORY) currentState = GAME_STATE.PLAYING;
     });
@@ -216,6 +462,7 @@ function init() {
 }
 
 function showItemPopup(itemName, iconEmoji, desc, iconImg) {
+    playSound('pickup'); // 🔊 當獲得道具並顯示彈窗時，播放獲得道具的音效
     popupData.text = itemName; 
     popupData.icon = iconEmoji; 
     popupData.desc = desc; 
@@ -235,6 +482,7 @@ function setupLevels() {
 
 function startLevel(lvl) {
     currentLevel = lvl; player.x = 50; player.y = 300; player.vx = 0; player.vy = 0; camera.x = 0; 
+    updateBGMForLevel(); // 🔊 關卡切換時，同步切換專屬 BGM
     
     if(lvl === 1) writeText("Step gently into the rain. [A/D] Move, [W] Jump. The forest breathes.");
     else if(lvl === 2) writeText("Dengdeng, white as a cloud, heavy with silence.\nA glint of hope hangs from her neck.");
@@ -247,7 +495,11 @@ function startLevel(lvl) {
 }
 
 function resetLevel() { setupLevels(); if(currentLevel === 3) player.inventory.hasFish = false; player.invisible = false; startLevel(currentLevel); }
-function showGameOver(reason) { currentState = GAME_STATE.GAMEOVER; deathReasonEl.innerText = reason; gameOverScreen.style.display = 'flex'; }
+function showGameOver(reason) { 
+    playSound('gameover'); // 🔊 觸發 Game Over 音效
+    stopBGM(); // 🔊 遊戲結束，停止背景音樂
+    currentState = GAME_STATE.GAMEOVER; deathReasonEl.innerText = reason; gameOverScreen.style.display = 'flex'; 
+}
 
 function update() {
     if (currentState === GAME_STATE.PROLOGUE) {
@@ -299,7 +551,10 @@ function update() {
             }
         });
     }
-    if(keys.up && player.grounded) { player.vy = player.jumpPower; player.grounded = false; }
+    
+    // 🔊 在此處加入跳躍音效觸發
+    if(keys.up && player.grounded) { player.vy = player.jumpPower; player.grounded = false; playSound('jump'); }
+    
     let levelWidth = levelData.width || 800;
     if(player.x < 0) player.x = 0; if(player.x > levelWidth - player.width) player.x = levelWidth - player.width; 
     if(player.y > canvas.height) { player.x = 50; player.y = 200; player.vy = 0; camera.x = 0; } 
@@ -320,9 +575,16 @@ function update() {
 function handleLevelLogic(data) {
     data.items.forEach(item => {
         if(checkCollision(player, item)) {
-            if(item.type === 'mushroom') player.vy = -20;
+            if(item.type === 'mushroom') { 
+                // 🔊 確保只有在往下掉落碰到蘑菇時才觸發，避免卡住瘋狂播放
+                if (player.vy >= 0) { 
+                    player.vy = -20; 
+                    playSound('mushroomBounce'); // 🔊 觸發蘑菇彈跳音效
+                }
+            }
             if(item.type === 'chest' && !item.opened && keys.interact && !keys.interactPressed) {
                 keys.interactPressed = true; item.opened = true; player.inventory.hasFruit = true; player.invisible = true; player.invisibleTimer = 600;
+                playSound('chestOpen'); // 🔊 觸發寶箱開啟魔法音效
                 showItemPopup("Ghost Fruit", "🍎", "Refracts light to walk unseen.", iconImgs.fruit); writeText("Consumed Ghost Fruit! You are fading away...");
             }
             if(item.type === 'bucket' && keys.interact && !keys.interactPressed) {
@@ -331,12 +593,14 @@ function handleLevelLogic(data) {
             }
             if(item.type === 'door') {
                 if(item.open) {
-                    if(keys.interact && !keys.interactPressed) { keys.interactPressed = true; startLevel(currentLevel + 1); }
+                    // 🔊 開門成功過場音效
+                    if(keys.interact && !keys.interactPressed) { keys.interactPressed = true; playSound('door'); startLevel(currentLevel + 1); }
                 } else {
                     if(keys.interact && !keys.interactPressed) {
                         keys.interactPressed = true;
                         if(currentLevel === 2) {
-                            if(player.inventory.hasKey) { item.open = true; writeText("Door unlocked."); } 
+                            // 🔊 解鎖成功音效
+                            if(player.inventory.hasKey) { item.open = true; writeText("Door unlocked."); playSound('door'); } 
                             else { writeText("Locked. The white cat guards it."); }
                         } else { writeText("Blocked."); }
                     }
@@ -349,15 +613,16 @@ function handleLevelLogic(data) {
         let dist = Math.abs(player.x - npc.x);
         if (!npc.introShown && dist < 500) {
             npc.introShown = true;
-            if (npc.type === 'white_cat') writeText("Dengdeng, white as a cloud, heavy with silence.\nA glint of hope hangs from her neck.");
-            else if (npc.type === 'black_cat') writeText("A roar of hunger! His magic ripples through the air.\nHe just needs a little warmth (and fish).");
-            else if (npc.type === 'orange_cat') writeText("Kai stands like a fortress.\nBut even mountains tremble at the sound of thunder (Swatter).");
+            if (npc.type === 'white_cat') { writeText("Dengdeng, white as a cloud, heavy with silence.\nA glint of hope hangs from her neck."); playSound('meow_white'); } // 🔊 白貓初次見面音效
+            else if (npc.type === 'black_cat') { writeText("A roar of hunger! His magic ripples through the air.\nHe just needs a little warmth (and fish)."); playSound('meow_black'); } // 🔊 黑貓初次見面音效
+            else if (npc.type === 'orange_cat') { writeText("Kai stands like a fortress.\nBut even mountains tremble at the sound of thunder (Swatter)."); playSound('meow_orange'); } // 🔊 橘貓初次見面音效
         }
         if(npc.type === 'white_cat') {
             if(npc.alert) {
                 if(player.invisible) {
                     if(dist < 50 && keys.interact && !keys.interactPressed) {
                         keys.interactPressed = true; player.inventory.hasKey = true; npc.alert = false;
+                        playSound('meow_white'); // 🔊 成功拿到鑰匙時白貓喵一聲
                         showItemPopup("Cabin Key", "🔑", "A heavy iron key.", iconImgs.key); writeText("Stealth successful. Key taken.");
                     }
                 } else {
@@ -372,7 +637,11 @@ function handleLevelLogic(data) {
             for (let i = data.waves.length - 1; i >= 0; i--) {
                 let w = data.waves[i]; w.x -= w.speed;
                 if(checkCollision(player, w)) {
-                    if(player.iframes <= 0) { player.hp--; player.iframes = 60; if(player.hp <= 0) showGameOver("Overwhelmed by the noise..."); else writeText("Ouch! The scream hurts!"); }
+                    if(player.iframes <= 0) { 
+                        player.hp--; player.iframes = 60; 
+                        // 🔊 受到黑貓聲波攻擊的受傷音效
+                        if(player.hp <= 0) showGameOver("Overwhelmed by the noise..."); else { writeText("Ouch! The scream hurts!"); playSound('hit'); } 
+                    }
                 }
                 if(w.x < camera.x - 100) data.waves.splice(i, 1);
             }
@@ -381,8 +650,9 @@ function handleLevelLogic(data) {
                 keys.interactPressed = true;
                 if(player.inventory.hasFish) {
                     npc.alert = false; npc.fed = true; data.waves = []; player.inventory.hasFish = false; player.inventory.hasSwatter = true; npc.w = 100; npc.h = 100; npc.y = 300; 
+                    playSound('meow_black'); // 🔊 黑貓吃飽滿足的聲音
                     data.items.find(i => i.type === 'door').open = true; showItemPopup("Toy Swatter", "🏸", "Makes thunder sounds.", iconImgs.swatter); writeText("He's full and asleep. Left a toy behind.");
-                } else { writeText("HANGRY! Feed him!"); }
+                } else { writeText("HANGRY! Feed him!"); playSound('meow_black'); } // 🔊 沒魚時抗議的聲音
             } 
         }
         if(npc.type === 'orange_cat' && !npc.scared) {
@@ -392,7 +662,8 @@ function handleLevelLogic(data) {
                     keys.interactPressed = true;
                     if(player.inventory.hasSwatter) {
                         npc.scared = true; npc.x = 2500; data.items.find(i => i.type === 'door').open = true; writeText("ZAP! He thinks it's thunder! He fled!");
-                    } else { writeText("He won't budge. He only fears 'Thunder'..."); }
+                        playSound('meow_orange'); // 🔊 橘貓被電蚊拍嚇跑的聲音
+                    } else { writeText("He won't budge. He only fears 'Thunder'..."); playSound('meow_orange'); } // 🔊 橘貓不動如山的聲音
                 }
             }
         }
@@ -411,7 +682,19 @@ function handleLevelLogic(data) {
 }
 
 function checkCollision(r1, r2) { return (r1.x < r2.x + r2.w && r1.x + r1.width > r2.x && r1.y < r2.y + r2.h && r1.y + r1.height > r2.y); }
-function triggerEnding() { currentState = GAME_STATE.ENDING_SEQUENCE; writeText("You hold her tight. The coldness begins to fade..."); setTimeout(() => { writeText("The tears stop falling. The clouds part for the sun."); setTimeout(() => { currentState = GAME_STATE.ENDING; }, 4000); }, 3000); }
+
+function triggerEnding() { 
+    stopBGM(); // 🔊 觸發結局，停止一般背景音樂
+    
+    // 🔊 播放你的專屬結局音樂
+    endingMusic.currentTime = 0; 
+    endingMusic.play().catch(e => console.log("音樂播放失敗", e));
+
+    currentState = GAME_STATE.ENDING_SEQUENCE; 
+    writeText("You hold her tight. The coldness begins to fade..."); 
+    setTimeout(() => { writeText("The tears stop falling. The clouds part for the sun."); setTimeout(() => { currentState = GAME_STATE.ENDING; }, 4000); }, 3000); 
+}
+
 function writeText(text, skipLog = false) { 
     narratorEl.innerText = text; 
     if (!skipLog && text && text.trim() !== "" && (dialogueHistory.length === 0 || dialogueHistory[dialogueHistory.length - 1] !== text)) {
